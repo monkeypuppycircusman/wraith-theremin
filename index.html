@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WRAITH — Theremin</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=DM+Mono:wght@300;400&family=Cormorant+Garamond:ital,wght@0,300;1,300;1,400&display=swap');
+
+:root {
+  --void: #03020a;
+  --deep: #07050f;
+  --murk: #0d0a1a;
+  --fog:  #151028;
+  --mist: #1e1830;
+  --ecto: #7affcc;
+  --ecto2:#a8ffe0;
+  --ecto3:#c8fff0;
+  --ecto-dim:#0a2a1e;
+  --soul: #c060ff;
+  --soul2:#e090ff;
+  --bone: #d4cfc0;
+  --bone2:#e8e4d8;
+  --blood:#ff2040;
+  --rust: #c84020;
+  --text: #8a8598;
+  --text2:#504860;
+  --text3:#2a2438;
+  --mono: 'DM Mono', monospace;
+  --serif:'Cormorant Garamond', serif;
+  --goth: 'UnifrakturMaguntia', cursive;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--void);
+  overflow: hidden;
+  font-family: var(--mono);
+  cursor: none;
+}
+
+/* ── GHOST CURSOR ── */
+#cursor {
+  position: fixed;
+  width: 28px; height: 28px;
+  pointer-events: none;
+  z-index: 9999;
+  transform: translate(-50%, -50%);
+  transition: transform 0.05s;
+}
+#cursor svg { width: 100%; height: 100%; }
+
+/* ── ATMOSPHERE CANVAS ── */
+#atmos {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── MAIN LAYOUT ── */
+#app {
+  position: relative;
+  width: 100vw; height: 100vh;
+  display: flex;
+  flex-direction: column;
+  z-index: 1;
+}
+
+/* ── HEADER ── */
+#hdr {
+  flex-shrink: 0;
+  padding: 18px 28px 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  border-bottom: 1px solid var(--text3);
+  background: linear-gradient(180deg, rgba(7,5,15,.95) 0%, transparent 100%);
+  position: relative;
+  z-index: 2;
+}
+
+#logo {
+  font-family: var(--goth);
+  font-size: 38px;
+  color: var(--ecto);
+  text-shadow: 0 0 20px var(--ecto), 0 0 60px rgba(122,255,204,.3);
+  letter-spacing: 4px;
+  line-height: 1;
+}
+
+#logo-sub {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--text3);
+  text-transform: uppercase;
+}
+
+#hdr-stats {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.hstat {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text3);
+  text-transform: uppercase;
+}
+.hstat span {
+  color: var(--text2);
+  transition: color .1s;
+}
+.hstat span.lit { color: var(--ecto); text-shadow: 0 0 8px var(--ecto); }
+
+#power-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: all .3s;
+}
+#power-dot.on {
+  background: var(--ecto);
+  box-shadow: 0 0 8px var(--ecto), 0 0 20px rgba(122,255,204,.5);
+}
+
+/* ── THEREMIN FIELD ── */
+#field-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+#field {
+  position: absolute; inset: 0;
+  cursor: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(13,10,26,.8) 0%, rgba(3,2,10,1) 100%);
+}
+
+/* Grid lines */
+#field::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(122,255,204,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(122,255,204,.025) 1px, transparent 1px);
+  background-size: 80px 60px;
+  pointer-events: none;
+}
+
+/* Axis labels */
+.axis-label {
+  position: absolute;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: var(--text3);
+  text-transform: uppercase;
+  pointer-events: none;
+}
+#ax-freq { bottom: 12px; left: 50%; transform: translateX(-50%); }
+#ax-vol  { left: 10px; top: 50%; transform: translateY(-50%) rotate(-90deg); }
+#ax-lo   { bottom: 12px; left: 16px; }
+#ax-hi   { bottom: 12px; right: 16px; }
+#ax-loud { right: 10px; top: 16px; font-size: 8px; writing-mode: vertical-rl; color: var(--text3); letter-spacing: 2px; }
+#ax-soft { right: 10px; bottom: 16px; font-size: 8px; writing-mode: vertical-rl; color: var(--text3); letter-spacing: 2px; }
+
+/* ── GHOST GLOW RING on field ── */
+#ghost-ring {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: opacity .15s;
+  opacity: 0;
+}
+
+/* ── TRAIL CANVAS ── */
+#trail-canvas {
+  position: absolute; inset: 0;
+  pointer-events: none;
+}
+
+/* ── WAVEFORM BAR ── */
+#wave-bar {
+  flex-shrink: 0;
+  height: 64px;
+  background: var(--deep);
+  border-top: 1px solid var(--text3);
+  position: relative;
+  z-index: 2;
+  overflow: hidden;
+}
+#wave-canvas {
+  width: 100%; height: 100%;
+  display: block;
+}
+
+/* ── CONTROLS STRIP ── */
+#controls {
+  flex-shrink: 0;
+  background: linear-gradient(0deg, rgba(7,5,15,.98) 0%, transparent 100%);
+  border-top: 1px solid var(--text3);
+  padding: 12px 24px 16px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  position: relative;
+  z-index: 2;
+}
+
+/* Voice selector */
+.voice-btn {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border: 1px solid var(--text3);
+  border-radius: 3px;
+  color: var(--text2);
+  background: transparent;
+  cursor: pointer;
+  transition: all .15s;
+}
+.voice-btn:hover { color: var(--text); border-color: var(--text2); }
+.voice-btn.active {
+  color: var(--ecto);
+  border-color: var(--ecto);
+  background: rgba(122,255,204,.06);
+  text-shadow: 0 0 8px var(--ecto);
+}
+
+/* Divider */
+.cdiv {
+  width: 1px; height: 32px;
+  background: var(--text3);
+  flex-shrink: 0;
+}
+
+/* Knob group */
+.kg { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+canvas.knob { cursor: ns-resize; display: block; }
+.kl { font-family: var(--mono); font-size: 7px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text3); }
+.kv { font-family: var(--mono); font-size: 9px; color: var(--text2); min-width: 32px; text-align: center; }
+
+/* Scale selector */
+.scale-btn {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--text2);
+  background: transparent;
+  border: 1px solid var(--text3);
+  border-radius: 3px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.scale-btn:hover { color: var(--soul2); border-color: var(--soul); }
+.scale-btn.active { color: var(--soul2); border-color: var(--soul); background: rgba(192,96,255,.06); }
+
+/* Note display */
+#note-display {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+#note-name {
+  font-family: var(--serif);
+  font-size: 28px;
+  font-style: italic;
+  font-weight: 300;
+  color: var(--ecto2);
+  text-shadow: 0 0 16px var(--ecto);
+  line-height: 1;
+  min-width: 48px;
+  text-align: right;
+  transition: color .05s;
+}
+#freq-display {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text2);
+  letter-spacing: 1px;
+}
+
+/* Portamento */
+#glide-label {
+  font-family: var(--serif);
+  font-size: 11px;
+  font-style: italic;
+  color: var(--text3);
+}
+
+/* Whisper text */
+#whisper {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 18px;
+  font-weight: 300;
+  color: var(--text3);
+  pointer-events: none;
+  text-align: center;
+  line-height: 1.8;
+  opacity: 1;
+  transition: opacity .5s;
+  user-select: none;
+}
+#whisper.gone { opacity: 0; }
+
+/* ── KEYBOARD SECTION ── */
+#kb-section {
+  flex-shrink: 0;
+  background: var(--deep);
+  border-top: 1px solid var(--text3);
+  padding: 10px 14px 12px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+
+#kb-wrap {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+}
+
+#keyboard {
+  display: flex;
+  height: 66px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--text3);
+  position: relative;
+  flex: 1;
+}
+
+.key {
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background .04s;
+}
+.key.white {
+  background: linear-gradient(180deg,#181828 0%,#0e0e1a 100%);
+  border-right: 1px solid var(--text3);
+  flex: 1;
+  z-index: 1;
+}
+.key.white:hover { background: linear-gradient(180deg,#201e34 0%,#16142a 100%); }
+.key.white.active {
+  background: linear-gradient(180deg, var(--ecto2) 0%, var(--ecto) 100%) !important;
+  box-shadow: inset 0 0 12px rgba(122,255,204,.4);
+}
+.key.black {
+  background: linear-gradient(180deg,#06060e 0%,#0c0c18 100%);
+  position: absolute;
+  width: 60%; height: 58%;
+  top: 0; z-index: 2;
+  border-radius: 0 0 3px 3px;
+  border: 1px solid var(--text3);
+  border-top: none;
+}
+.key.black:hover { background: linear-gradient(180deg,#12102a 0%,#1a1830 100%); }
+.key.black.active {
+  background: linear-gradient(180deg, var(--ecto-dim) 0%, #0a2820 100%) !important;
+  box-shadow: 0 0 10px rgba(122,255,204,.3);
+}
+.key-lbl {
+  position: absolute;
+  bottom: 3px; left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 7px;
+  color: var(--text3);
+  pointer-events: none;
+  user-select: none;
+}
+.key.active .key-lbl { color: rgba(0,0,0,.5); }
+.key.black .key-lbl { bottom: 4px; color: var(--text3); }
+
+/* Oct wheel */
+#oct-wheel-outer {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 3px;
+  flex-shrink: 0;
+}
+#oct-wheel {
+  width: 32px; height: 66px;
+  background: var(--void);
+  border: 1px solid var(--text3);
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: ns-resize;
+  position: relative;
+  user-select: none;
+}
+#oct-wheel-inner {
+  position: absolute; top: 0; left: 0; right: 0;
+  transition: transform .14s cubic-bezier(.22,.68,0,1.2);
+}
+.ow-slot {
+  height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 8px;
+  color: var(--text3);
+  border-bottom: 1px solid var(--text3);
+  flex-shrink: 0;
+}
+.ow-slot.cur {
+  color: var(--ecto);
+  background: rgba(122,255,204,.06);
+  border-color: var(--ecto-dim);
+}
+#oct-wheel::before, #oct-wheel::after {
+  content: ''; position: absolute;
+  left: 0; right: 0; height: 12px; z-index: 2; pointer-events: none;
+}
+#oct-wheel::before { top: 0; background: linear-gradient(to bottom, var(--void), transparent); }
+#oct-wheel::after  { bottom: 0; background: linear-gradient(to top, var(--void), transparent); }
+#oct-kb-lbl {
+  font-family: var(--mono); font-size: 7px;
+  color: var(--text3); text-transform: uppercase; letter-spacing: 1px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+
+<!-- Ghost cursor -->
+<div id="cursor">
+  <svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="14" cy="11" rx="7" ry="9" fill="none" stroke="#7affcc" stroke-width="1" opacity="0.8"/>
+    <path d="M7 11 Q7 22 10 20 Q12 19 14 21 Q16 19 18 20 Q21 22 21 11" fill="none" stroke="#7affcc" stroke-width="1" opacity="0.8"/>
+    <circle cx="11" cy="10" r="1.5" fill="#7affcc" opacity="0.9"/>
+    <circle cx="17" cy="10" r="1.5" fill="#7affcc" opacity="0.9"/>
+    <circle cx="14" cy="11" r="6" fill="rgba(122,255,204,0.04)"/>
+  </svg>
+</div>
+
+<canvas id="atmos"></canvas>
+
+<div id="app">
+  <!-- HEADER -->
+  <div id="hdr">
+    <div>
+      <div id="logo">Wraith</div>
+      <div id="logo-sub">Spectral Theremin · Web Audio</div>
+    </div>
+    <div id="hdr-stats">
+      <div class="hstat">Freq <span id="hs-freq">—</span></div>
+      <div class="hstat">Note <span id="hs-note">—</span></div>
+      <div class="hstat">Vol <span id="hs-vol">—</span></div>
+      <div id="power-dot"></div>
+    </div>
+  </div>
+
+  <!-- THEREMIN FIELD -->
+  <div id="field-wrap">
+    <div id="field">
+      <canvas id="trail-canvas"></canvas>
+      <div id="ghost-ring"></div>
+
+      <div class="axis-label" id="ax-lo">Low</div>
+      <div class="axis-label" id="ax-hi">High</div>
+      <div class="axis-label" id="ax-freq">← Frequency →</div>
+      <div class="axis-label" id="ax-loud">Loud</div>
+      <div class="axis-label" id="ax-soft">Soft</div>
+
+      <div id="whisper">Move your hand across the void<br><span style="font-size:13px;color:var(--text3);">left ↔ pitch · up ↕ volume</span></div>
+    </div>
+  </div>
+
+  <!-- WAVEFORM -->
+  <div id="wave-bar">
+    <canvas id="wave-canvas"></canvas>
+  </div>
+
+  <!-- KEYBOARD -->
+  <div id="kb-section">
+    <div style="font-family:var(--mono);font-size:8px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;writing-mode:vertical-rl;flex-shrink:0;">Keys</div>
+    <div id="kb-wrap">
+      <div id="oct-wheel-outer">
+        <div id="oct-wheel"><div id="oct-wheel-inner"></div></div>
+        <div id="oct-kb-lbl">Oct</div>
+      </div>
+      <div id="keyboard"></div>
+    </div>
+    <div style="font-family:var(--mono);font-size:8px;color:var(--text3);line-height:1.8;flex-shrink:0;padding-left:8px;">
+      ASDFGHJK · WETYU<br>Z/X octave
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div id="controls">
+    <!-- Voice -->
+    <div style="display:flex;gap:5px;flex-direction:column;">
+      <div style="font-family:var(--mono);font-size:8px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:2px;">Voice</div>
+      <div style="display:flex;gap:4px;">
+        <button class="voice-btn active" data-voice="ghost">Ghost</button>
+        <button class="voice-btn" data-voice="banshee">Banshee</button>
+        <button class="voice-btn" data-voice="wraith">Wraith</button>
+        <button class="voice-btn" data-voice="spirit">Spirit</button>
+      </div>
+    </div>
+
+    <div class="cdiv"></div>
+
+    <!-- Scale snap -->
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <div style="font-family:var(--mono);font-size:8px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;">Scale</div>
+      <div style="display:flex;gap:4px;">
+        <button class="scale-btn active" data-scale="free">Free</button>
+        <button class="scale-btn" data-scale="minor">Minor</button>
+        <button class="scale-btn" data-scale="phrygian">Phrygian</button>
+        <button class="scale-btn" data-scale="diminished">Dim</button>
+      </div>
+    </div>
+
+    <div class="cdiv"></div>
+
+    <!-- Knobs -->
+    <div class="kg">
+      <canvas class="knob" id="k-glide" width="42" height="42" data-min="0.01" data-max="0.6" data-val="0.12" data-color="#7affcc"></canvas>
+      <div class="kl">Glide</div><div class="kv" id="v-glide">0.12</div>
+    </div>
+    <div class="kg">
+      <canvas class="knob" id="k-vibrato" width="42" height="42" data-min="0" data-max="12" data-val="0" data-color="#a8ffd8"></canvas>
+      <div class="kl">Vibrato</div><div class="kv" id="v-vibrato">0</div>
+    </div>
+    <div class="kg">
+      <canvas class="knob" id="k-reverb" width="42" height="42" data-min="0" data-max="1" data-val="0.7" data-color="#c060ff"></canvas>
+      <div class="kl">Reverb</div><div class="kv" id="v-reverb">0.70</div>
+    </div>
+    <div class="kg">
+      <canvas class="knob" id="k-detune" width="42" height="42" data-min="0" data-max="30" data-val="4" data-color="#e090ff"></canvas>
+      <div class="kl">Detune</div><div class="kv" id="v-detune">4</div>
+    </div>
+
+    <div class="cdiv"></div>
+
+    <!-- Note display -->
+    <div id="note-display">
+      <div id="note-name">—</div>
+      <div id="freq-display">— Hz</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// WRAITH — Spectral Theremin
+// ══════════════════════════════════════════════
+
+// ── State ──
+let actx = null, masterGain, reverbConv, reverbWet, reverbDry, analyser;
+let osc1, osc2, oscSub, vibratoOsc, vibratoGain, envGain;
+let graphBuilt = false;
+let isPlaying = false;
+
+const P = {
+  glide: 0.12,
+  vibrato: 0,
+  reverb: 0.7,
+  detune: 4,
+  voice: 'ghost',
+  scale: 'free',
+  freq: 220,
+  vol: 0,
+};
+
+// Frequency range
+const FREQ_MIN = 80;
+const FREQ_MAX = 1800;
+
+// ── Scales ──
+const SCALES = {
+  free: null,
+  minor:      [0,2,3,5,7,8,10],
+  phrygian:   [0,1,3,5,7,8,10],
+  diminished: [0,2,3,5,6,8,9,11],
+};
+
+function snapToScale(freq) {
+  if (P.scale === 'free') return freq;
+  const scale = SCALES[P.scale];
+  const A4 = 440;
+  const semitones = 12 * Math.log2(freq / A4);
+  const octave = Math.floor(semitones / 12);
+  const degree = ((semitones % 12) + 12) % 12;
+  // Find nearest scale degree
+  let best = scale[0], bestDist = Infinity;
+  for (let d of scale) {
+    const dist = Math.abs(d - degree);
+    const dist2 = Math.abs(d - degree + 12);
+    const dist3 = Math.abs(d - degree - 12);
+    const m = Math.min(dist, dist2, dist3);
+    if (m < bestDist) { bestDist = m; best = d; }
+  }
+  return A4 * Math.pow(2, (octave * 12 + best) / 12);
+}
+
+function freqToNote(freq) {
+  const notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const midi = Math.round(12 * Math.log2(freq / 440) + 69);
+  const note = notes[((midi % 12) + 12) % 12];
+  const oct  = Math.floor(midi / 12) - 1;
+  return note + oct;
+}
+
+// ── Audio ──
+function getCtx() {
+  if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+
+function buildReverb(size) {
+  const c = getCtx(), sr = c.sampleRate;
+  const len = Math.floor(sr * (1.8 + size * 5));
+  const buf = c.createBuffer(2, len, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++)
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 0.8) * (ch ? 0.92 : 1);
+  }
+  reverbConv.buffer = buf;
+}
+
+function buildGraph() {
+  if (graphBuilt) return; graphBuilt = true;
+  const c = getCtx();
+
+  masterGain = c.createGain(); masterGain.gain.value = 1;
+  analyser = c.createAnalyser(); analyser.fftSize = 1024;
+  reverbConv = c.createConvolver(); buildReverb(P.reverb);
+  reverbWet = c.createGain(); reverbWet.gain.value = P.reverb;
+  reverbDry = c.createGain(); reverbDry.gain.value = 1 - P.reverb * 0.4;
+
+  reverbConv.connect(reverbWet);
+  reverbDry.connect(analyser);
+  reverbWet.connect(analyser);
+  analyser.connect(c.destination);
+
+  buildVoice();
+}
+
+function buildVoice() {
+  const c = getCtx();
+  // Tear down old
+  [osc1, osc2, oscSub, vibratoOsc, vibratoGain, envGain].forEach(n => { try { n?.disconnect(); n?.stop?.(); } catch(e){} });
+
+  envGain    = c.createGain(); envGain.gain.value = 0;
+  vibratoOsc = c.createOscillator(); vibratoOsc.frequency.value = 5.2;
+  vibratoGain= c.createGain(); vibratoGain.gain.value = P.vibrato;
+  vibratoOsc.connect(vibratoGain);
+
+  switch(P.voice) {
+    case 'ghost': {
+      // Breathy, airy - sine + high harmonics softly
+      osc1 = c.createOscillator(); osc1.type = 'sine'; osc1.frequency.value = P.freq;
+      osc2 = c.createOscillator(); osc2.type = 'triangle'; osc2.frequency.value = P.freq;
+      osc2.detune.value = P.detune * 100;
+      const g2 = c.createGain(); g2.gain.value = 0.18;
+      const wave2 = c.createWaveShaper(); wave2.curve = makeBreathCurve();
+      osc1.connect(wave2); wave2.connect(envGain);
+      osc2.connect(g2); g2.connect(envGain);
+      vibratoGain.connect(osc1.frequency);
+      vibratoGain.connect(osc2.frequency);
+      osc1.start(); osc2.start();
+      break;
+    }
+    case 'banshee': {
+      // Screaming saw with filter
+      osc1 = c.createOscillator(); osc1.type = 'sawtooth'; osc1.frequency.value = P.freq;
+      osc2 = c.createOscillator(); osc2.type = 'sawtooth'; osc2.frequency.value = P.freq * 1.003;
+      osc2.detune.value = P.detune * 80;
+      const filt = c.createBiquadFilter(); filt.type = 'bandpass';
+      filt.frequency.value = P.freq * 2.5; filt.Q.value = 3;
+      const g1 = c.createGain(); g1.gain.value = 0.5;
+      const g2 = c.createGain(); g2.gain.value = 0.3;
+      osc1.connect(g1); g1.connect(filt); filt.connect(envGain);
+      osc2.connect(g2); g2.connect(envGain);
+      vibratoGain.connect(osc1.frequency);
+      vibratoGain.connect(osc2.frequency);
+      osc1.start(); osc2.start();
+      break;
+    }
+    case 'wraith': {
+      // Deep ghostly - sub + eerie triangle
+      osc1 = c.createOscillator(); osc1.type = 'triangle'; osc1.frequency.value = P.freq;
+      oscSub = c.createOscillator(); oscSub.type = 'sine'; oscSub.frequency.value = P.freq * 0.5;
+      osc2 = c.createOscillator(); osc2.type = 'sine'; osc2.frequency.value = P.freq * 2.01;
+      const gs = c.createGain(); gs.gain.value = 0.35;
+      const g2 = c.createGain(); g2.gain.value = 0.08;
+      osc1.connect(envGain);
+      oscSub.connect(gs); gs.connect(envGain);
+      osc2.connect(g2); g2.connect(envGain);
+      vibratoGain.connect(osc1.frequency);
+      osc1.start(); oscSub.start(); osc2.start();
+      break;
+    }
+    case 'spirit': {
+      // Custom periodic wave - haunted organ whistle
+      const real = new Float32Array(8);
+      const imag = new Float32Array(8);
+      real[1]=0.6; real[2]=0.25; real[3]=0.12; real[4]=0.06; real[5]=0.03; real[6]=0.015; real[7]=0.008;
+      const wave = c.createPeriodicWave(real, imag);
+      osc1 = c.createOscillator(); osc1.setPeriodicWave(wave); osc1.frequency.value = P.freq;
+      osc2 = c.createOscillator(); osc2.type = 'sine'; osc2.frequency.value = P.freq * 1.5;
+      const g2 = c.createGain(); g2.gain.value = 0.04;
+      osc1.connect(envGain);
+      osc2.connect(g2); g2.connect(envGain);
+      vibratoGain.connect(osc1.frequency);
+      osc1.start(); osc2.start();
+      break;
+    }
+  }
+
+  envGain.connect(reverbDry);
+  envGain.connect(reverbConv);
+  vibratoOsc.start();
+  envGain.gain.value = isPlaying ? P.vol : 0;
+}
+
+function makeBreathCurve() {
+  const n = 256, curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2 / n) - 1;
+    curve[i] = x * (1 + 0.15 * Math.sin(x * Math.PI * 3));
+  }
+  return curve;
+}
+
+function setFreq(f) {
+  if (!osc1) return;
+  const c = getCtx(), t = c.currentTime;
+  const snapped = snapToScale(f);
+  P.freq = snapped;
+  osc1?.frequency.setTargetAtTime(snapped, t, P.glide);
+  osc2?.frequency.setTargetAtTime(snapped * (P.voice==='banshee'?1.003:1), t, P.glide);
+  if (oscSub) oscSub.frequency.setTargetAtTime(snapped * 0.5, t, P.glide);
+  // Update banshee filter if needed
+}
+
+function setVol(v) {
+  if (!envGain) return;
+  const c = getCtx(), t = c.currentTime;
+  P.vol = v;
+  envGain.gain.setTargetAtTime(v, t, 0.04);
+}
+
+// ── Field interaction ──
+const field = document.getElementById('field');
+let fieldActive = false;
+let mx = 0, my = 0;
+
+function fieldCoordToParams(x, y) {
+  const r = field.getBoundingClientRect();
+  const nx = Math.max(0, Math.min(1, (x - r.left) / r.width));
+  const ny = Math.max(0, Math.min(1, (y - r.top) / r.height));
+  const logMin = Math.log2(FREQ_MIN), logMax = Math.log2(FREQ_MAX);
+  const freq = Math.pow(2, logMin + nx * (logMax - logMin));
+  const vol  = (1 - ny) * 0.85;
+  return { freq, vol };
+}
+
+function startPlaying(x, y) {
+  getCtx(); buildGraph();
+  const { freq, vol } = fieldCoordToParams(x, y);
+  P.freq = freq; P.vol = vol;
+  isPlaying = true;
+  setFreq(freq);
+  setVol(vol);
+  document.getElementById('power-dot').classList.add('on');
+  document.getElementById('whisper').classList.add('gone');
+  updateDisplays(freq, vol);
+  showRing(x, y, vol);
+}
+
+function updatePlaying(x, y) {
+  if (!isPlaying) return;
+  const { freq, vol } = fieldCoordToParams(x, y);
+  setFreq(freq);
+  setVol(vol);
+  updateDisplays(freq, vol);
+  showRing(x, y, vol);
+}
+
+function stopPlaying() {
+  isPlaying = false;
+  setVol(0);
+  document.getElementById('power-dot').classList.remove('on');
+  hideRing();
+  document.getElementById('hs-freq').classList.remove('lit');
+  document.getElementById('hs-note').classList.remove('lit');
+  document.getElementById('hs-vol').classList.remove('lit');
+}
+
+function updateDisplays(freq, vol) {
+  const note = freqToNote(freq);
+  document.getElementById('note-name').textContent = note;
+  document.getElementById('freq-display').textContent = Math.round(freq) + ' Hz';
+  const hf = document.getElementById('hs-freq');
+  const hn = document.getElementById('hs-note');
+  const hv = document.getElementById('hs-vol');
+  hf.textContent = Math.round(freq) + 'Hz';
+  hn.textContent = note;
+  hv.textContent = Math.round(vol * 100) + '%';
+  hf.classList.add('lit'); hn.classList.add('lit'); hv.classList.add('lit');
+}
+
+// ── Ghost ring ──
+const ring = document.getElementById('ghost-ring');
+function showRing(x, y, vol) {
+  const r = field.getBoundingClientRect();
+  const rx = x - r.left, ry = y - r.top;
+  const sz = 60 + vol * 120;
+  ring.style.left = rx + 'px';
+  ring.style.top  = ry + 'px';
+  ring.style.width  = sz + 'px';
+  ring.style.height = sz + 'px';
+  ring.style.background = `radial-gradient(ellipse, rgba(122,255,204,${vol*0.12}) 0%, transparent 70%)`;
+  ring.style.boxShadow  = `0 0 ${sz*0.4}px rgba(122,255,204,${vol*0.25}), 0 0 ${sz}px rgba(122,255,204,${vol*0.06})`;
+  ring.style.opacity = '1';
+}
+function hideRing() { ring.style.opacity = '0'; }
+
+// ── Cursor ──
+const cursor = document.getElementById('cursor');
+document.addEventListener('mousemove', e => {
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top  = e.clientY + 'px';
+  mx = e.clientX; my = e.clientY;
+});
+
+// ── Field mouse events ──
+field.addEventListener('mousedown', e => { startPlaying(e.clientX, e.clientY); fieldActive = true; });
+document.addEventListener('mousemove', e => { if (fieldActive) updatePlaying(e.clientX, e.clientY); });
+document.addEventListener('mouseup', () => { if (fieldActive) { stopPlaying(); fieldActive = false; } });
+
+// ── Touch events ──
+field.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  startPlaying(t.clientX, t.clientY);
+  fieldActive = true;
+}, { passive: false });
+field.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  updatePlaying(t.clientX, t.clientY);
+}, { passive: false });
+field.addEventListener('touchend', e => {
+  e.preventDefault();
+  stopPlaying(); fieldActive = false;
+}, { passive: false });
+
+// ── Trail canvas ──
+const trailCv = document.getElementById('trail-canvas');
+const trailCtx = trailCv.getContext('2d');
+let trailPoints = [];
+
+function resizeTrail() {
+  const r = field.getBoundingClientRect();
+  trailCv.width = r.width; trailCv.height = r.height;
+}
+
+function drawTrail() {
+  const r = field.getBoundingClientRect();
+  trailCtx.clearRect(0, 0, trailCv.width, trailCv.height);
+
+  if (fieldActive && isPlaying) {
+    trailPoints.push({ x: mx - r.left, y: my - r.top, t: Date.now(), vol: P.vol });
+    if (trailPoints.length > 80) trailPoints.shift();
+  } else {
+    // Fade out slowly
+    if (trailPoints.length > 0) trailPoints.shift();
+  }
+
+  for (let i = 1; i < trailPoints.length; i++) {
+    const p = trailPoints[i], pp = trailPoints[i-1];
+    const age = (trailPoints.length - i) / trailPoints.length;
+    const alpha = age * 0.5 * p.vol;
+    trailCtx.beginPath();
+    trailCtx.moveTo(pp.x, pp.y);
+    trailCtx.lineTo(p.x, p.y);
+    trailCtx.strokeStyle = `rgba(122,255,204,${alpha})`;
+    trailCtx.lineWidth = age * 4;
+    trailCtx.stroke();
+
+    // Ghost orbs along trail
+    if (i % 6 === 0) {
+      trailCtx.beginPath();
+      trailCtx.arc(p.x, p.y, age * 6, 0, Math.PI * 2);
+      trailCtx.fillStyle = `rgba(122,255,204,${alpha * 0.3})`;
+      trailCtx.fill();
+    }
+  }
+
+  requestAnimationFrame(drawTrail);
+}
+
+// ── Waveform ──
+const waveCv  = document.getElementById('wave-canvas');
+const waveCtx = waveCv.getContext('2d');
+
+function drawWave() {
+  waveCv.width  = waveCv.offsetWidth;
+  waveCv.height = waveCv.offsetHeight;
+  const W = waveCv.width, H = waveCv.height;
+  waveCtx.clearRect(0, 0, W, H);
+
+  if (analyser && isPlaying) {
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteTimeDomainData(buf);
+    waveCtx.beginPath();
+    waveCtx.strokeStyle = `rgba(122,255,204,${0.3 + P.vol * 0.5})`;
+    waveCtx.lineWidth = 1.5;
+    waveCtx.shadowColor = '#7affcc';
+    waveCtx.shadowBlur = 8 * P.vol;
+    for (let i = 0; i < buf.length; i++) {
+      const x = (i / buf.length) * W;
+      const y = (buf[i] / 128 - 1) * (H * 0.4) + H / 2;
+      i === 0 ? waveCtx.moveTo(x, y) : waveCtx.lineTo(x, y);
+    }
+    waveCtx.stroke();
+    waveCtx.shadowBlur = 0;
+  } else {
+    // Flat ghostly line
+    waveCtx.beginPath();
+    waveCtx.strokeStyle = 'rgba(122,255,204,0.06)';
+    waveCtx.lineWidth = 1;
+    waveCtx.moveTo(0, H / 2); waveCtx.lineTo(W, H / 2);
+    waveCtx.stroke();
+  }
+
+  requestAnimationFrame(drawWave);
+}
+
+// ── Atmosphere canvas ──
+const atmosCv  = document.getElementById('atmos');
+const atmosCtx = atmosCv.getContext('2d');
+let atmosParticles = [];
+
+function initAtmos() {
+  atmosCv.width  = window.innerWidth;
+  atmosCv.height = window.innerHeight;
+  atmosParticles = Array.from({ length: 30 }, () => ({
+    x: Math.random() * atmosCv.width,
+    y: Math.random() * atmosCv.height,
+    vx: (Math.random() - 0.5) * 0.15,
+    vy: -0.05 - Math.random() * 0.1,
+    r: 1 + Math.random() * 3,
+    alpha: 0.01 + Math.random() * 0.04,
+    pulse: Math.random() * Math.PI * 2,
+  }));
+}
+
+function drawAtmos() {
+  atmosCv.width  = window.innerWidth;
+  atmosCv.height = window.innerHeight;
+  atmosCtx.clearRect(0, 0, atmosCv.width, atmosCv.height);
+
+  atmosParticles.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.pulse += 0.02;
+    if (p.y < -10) { p.y = atmosCv.height + 10; p.x = Math.random() * atmosCv.width; }
+    const a = p.alpha * (0.6 + 0.4 * Math.sin(p.pulse)) * (isPlaying ? 1 + P.vol * 3 : 1);
+    atmosCtx.beginPath();
+    atmosCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    atmosCtx.fillStyle = `rgba(122,255,204,${a})`;
+    atmosCtx.fill();
+  });
+
+  requestAnimationFrame(drawAtmos);
+}
+
+// ── Knobs ──
+function drawKnob(cv) {
+  const min = parseFloat(cv.dataset.min);
+  const max = parseFloat(cv.dataset.max);
+  const val = parseFloat(cv.dataset.val);
+  const col = cv.dataset.color || '#7affcc';
+  const W = cv.width, H = cv.height, cx = W/2, cy = H/2, r = W/2 - 4;
+  const t = (val - min) / (max - min);
+  const startA = Math.PI * 0.75, endA = Math.PI * 2.25;
+  const curA = startA + t * (endA - startA);
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  // Track
+  ctx.beginPath(); ctx.arc(cx, cy, r, startA, endA);
+  ctx.strokeStyle = '#1e1830'; ctx.lineWidth = 3; ctx.stroke();
+  // Fill
+  ctx.beginPath(); ctx.arc(cx, cy, r, startA, curA);
+  ctx.strokeStyle = col; ctx.lineWidth = 3;
+  ctx.shadowColor = col; ctx.shadowBlur = 6;
+  ctx.stroke(); ctx.shadowBlur = 0;
+  // Center
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.25, 0, Math.PI*2);
+  ctx.fillStyle = '#0d0a1a'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.1, 0, Math.PI*2);
+  ctx.fillStyle = col; ctx.fill();
+}
+
+function setupKnobs() {
+  document.querySelectorAll('canvas.knob').forEach(cv => {
+    drawKnob(cv);
+    let startY = null, startVal = null;
+    cv.addEventListener('mousedown', e => { startY = e.clientY; startVal = parseFloat(cv.dataset.val); e.preventDefault(); });
+    document.addEventListener('mousemove', e => {
+      if (startY === null) return;
+      const min = parseFloat(cv.dataset.min), max = parseFloat(cv.dataset.max);
+      const delta = (startY - e.clientY) / 120;
+      const val = Math.max(min, Math.min(max, startVal + delta * (max - min)));
+      cv.dataset.val = val;
+      drawKnob(cv);
+      onKnob(cv.id, val);
+    });
+    document.addEventListener('mouseup', () => { startY = null; });
+  });
+}
+
+function fmt(v, d=2) { return parseFloat(v).toFixed(d); }
+
+function onKnob(id, val) {
+  const c = getCtx();
+  ({
+    'k-glide':   () => { P.glide = val; document.getElementById('v-glide').textContent = fmt(val); },
+    'k-vibrato': () => {
+      P.vibrato = val;
+      document.getElementById('v-vibrato').textContent = fmt(val,1);
+      if (vibratoGain) vibratoGain.gain.setTargetAtTime(val, c.currentTime, 0.05);
+    },
+    'k-reverb':  () => {
+      P.reverb = val;
+      document.getElementById('v-reverb').textContent = fmt(val);
+      if (reverbWet) reverbWet.gain.setTargetAtTime(val, c.currentTime, 0.1);
+      if (reverbDry) reverbDry.gain.setTargetAtTime(1 - val * 0.4, c.currentTime, 0.1);
+      if (reverbConv) buildReverb(val);
+    },
+    'k-detune':  () => {
+      P.detune = val;
+      document.getElementById('v-detune').textContent = fmt(val,1);
+      if (osc2) osc2.detune.setTargetAtTime(val * (P.voice==='banshee'?80:100), c.currentTime, 0.05);
+    },
+  }[id] || (() => {}))();
+}
+
+// ── Keyboard ──
+const WHITE_KEYS  = [0,2,4,5,7,9,11];
+const BLACK_SLOTS = [1,3,null,6,8,10,null];
+const KB_WHITE = {'a':0,'s':1,'d':2,'f':3,'g':4,'h':5,'j':6,'k':7};
+const KB_BLACK = {'w':0,'e':1,'t':3,'y':4,'u':5};
+let kbOctave = 4;
+const kbActiveVoices = new Map();
+
+function noteToFreq(n) { return 440 * Math.pow(2, (n - 69) / 12); }
+
+function playKbNote(noteNum) {
+  if (kbActiveVoices.has(noteNum)) return;
+  getCtx(); buildGraph();
+  const c = actx, freq = noteToFreq(noteNum), now = c.currentTime;
+
+  // Build a mini voice using same P.voice setting
+  const kEnv = c.createGain();
+  kEnv.gain.setValueAtTime(0, now);
+  kEnv.gain.linearRampToValueAtTime(0.65, now + 0.04);
+  kEnv.gain.exponentialRampToValueAtTime(0.35, now + 0.3);
+
+  const nodes = [];
+  let primaryOsc;
+
+  switch(P.voice) {
+    case 'ghost': {
+      const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+      const o2 = c.createOscillator(); o2.type = 'triangle'; o2.frequency.value = freq; o2.detune.value = P.detune * 100;
+      const g2 = c.createGain(); g2.gain.value = 0.18;
+      const ws = c.createWaveShaper(); ws.curve = makeBreathCurve();
+      o.connect(ws); ws.connect(kEnv); o2.connect(g2); g2.connect(kEnv);
+      o.start(now); o2.start(now); nodes.push(o, o2); primaryOsc = o;
+      break;
+    }
+    case 'banshee': {
+      const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = freq;
+      const o2 = c.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = freq * 1.003; o2.detune.value = P.detune * 80;
+      const filt = c.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = freq * 2.5; filt.Q.value = 3;
+      const g1 = c.createGain(); g1.gain.value = 0.5; const g2 = c.createGain(); g2.gain.value = 0.3;
+      o.connect(g1); g1.connect(filt); filt.connect(kEnv); o2.connect(g2); g2.connect(kEnv);
+      o.start(now); o2.start(now); nodes.push(o, o2); primaryOsc = o;
+      break;
+    }
+    case 'wraith': {
+      const o = c.createOscillator(); o.type = 'triangle'; o.frequency.value = freq;
+      const sub = c.createOscillator(); sub.type = 'sine'; sub.frequency.value = freq * 0.5;
+      const o2 = c.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 2.01;
+      const gs = c.createGain(); gs.gain.value = 0.35; const g2 = c.createGain(); g2.gain.value = 0.08;
+      o.connect(kEnv); sub.connect(gs); gs.connect(kEnv); o2.connect(g2); g2.connect(kEnv);
+      o.start(now); sub.start(now); o2.start(now); nodes.push(o, sub, o2); primaryOsc = o;
+      break;
+    }
+    case 'spirit': {
+      const real = new Float32Array(8); const imag = new Float32Array(8);
+      real[1]=0.6; real[2]=0.25; real[3]=0.12; real[4]=0.06; real[5]=0.03; real[6]=0.015; real[7]=0.008;
+      const pw = c.createPeriodicWave(real, imag);
+      const o = c.createOscillator(); o.setPeriodicWave(pw); o.frequency.value = freq;
+      const o2 = c.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 1.5;
+      const g2 = c.createGain(); g2.gain.value = 0.04;
+      o.connect(kEnv); o2.connect(g2); g2.connect(kEnv);
+      o.start(now); o2.start(now); nodes.push(o, o2); primaryOsc = o;
+      break;
+    }
+  }
+
+  // Add vibrato if on
+  if (P.vibrato > 0) {
+    const vOsc = c.createOscillator(); vOsc.frequency.value = 5.2;
+    const vGain = c.createGain(); vGain.gain.value = P.vibrato;
+    vOsc.connect(vGain); vGain.connect(primaryOsc.frequency);
+    vOsc.start(now); nodes.push(vOsc);
+  }
+
+  // Route directly to reverb/analyser chain, not masterGain (which stays 0 when field inactive)
+  kEnv.connect(reverbDry);
+  kEnv.connect(reverbConv);
+  kbActiveVoices.set(noteNum, { env: kEnv, nodes });
+
+  // Update displays
+  const f = noteToFreq(noteNum);
+  document.getElementById('note-name').textContent = freqToNote(f);
+  document.getElementById('freq-display').textContent = Math.round(f) + ' Hz';
+  document.getElementById('power-dot').classList.add('on');
+  document.getElementById('whisper').classList.add('gone');
+}
+
+function stopKbNote(noteNum) {
+  const v = kbActiveVoices.get(noteNum); if (!v) return;
+  const now = actx.currentTime;
+  v.env.gain.cancelScheduledValues(now);
+  v.env.gain.setValueAtTime(v.env.gain.value, now);
+  v.env.gain.exponentialRampToValueAtTime(0.0001, now + P.glide * 4 + 0.1);
+  v.nodes.forEach(n => { try { n.stop(now + P.glide * 4 + 0.15); } catch(e){} });
+  kbActiveVoices.delete(noteNum);
+  if (kbActiveVoices.size === 0 && !fieldActive) {
+    document.getElementById('power-dot').classList.remove('on');
+  }
+}
+
+function buildKb() {
+  const el = document.getElementById('keyboard'); if (!el) return;
+  el.innerHTML = '';
+  const base = kbOctave * 12 + 12;
+  for (let i = 0; i < 8; i++) {
+    const n = base + WHITE_KEYS[i % 7];
+    const wk = document.createElement('div');
+    wk.className = 'key white'; wk.dataset.note = n;
+    wk.innerHTML = `<span class="key-lbl">${['A','S','D','F','G','H','J','K'][i]}</span>`;
+    el.appendChild(wk);
+  }
+  requestAnimationFrame(() => {
+    el.querySelectorAll('.key.white').forEach((wk, i) => {
+      const slot = BLACK_SLOTS[i % 7]; if (slot == null) return;
+      const n = base + slot;
+      const bk = document.createElement('div'); bk.className = 'key black'; bk.dataset.note = n;
+      bk.style.left = (wk.offsetLeft + wk.offsetWidth * 0.6) + 'px';
+      const lbl = ['W','E','','T','Y','U',''][i];
+      if (lbl) bk.innerHTML = `<span class="key-lbl">${lbl}</span>`;
+      el.appendChild(bk);
+    });
+    el.querySelectorAll('.key').forEach(k => {
+      k.addEventListener('mousedown', e => { e.preventDefault(); playKbNote(parseInt(k.dataset.note)); k.classList.add('active'); });
+      k.addEventListener('mouseup', () => { stopKbNote(parseInt(k.dataset.note)); k.classList.remove('active'); });
+      k.addEventListener('mouseleave', () => { const n = parseInt(k.dataset.note); if (kbActiveVoices.has(n)) { stopKbNote(n); k.classList.remove('active'); } });
+      k.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); playKbNote(parseInt(k.dataset.note)); k.classList.add('active'); }, { passive: false });
+      k.addEventListener('touchend', e => { e.preventDefault(); stopKbNote(parseInt(k.dataset.note)); k.classList.remove('active'); }, { passive: false });
+      k.addEventListener('touchcancel', () => { const n = parseInt(k.dataset.note); stopKbNote(n); k.classList.remove('active'); });
+    });
+  });
+}
+
+// Oct wheel
+const KB_OCT_MIN = 0, KB_OCT_MAX = 6, KB_SLOT_H = 18;
+
+function buildKbOctWheel() {
+  const inner = document.getElementById('oct-wheel-inner'); if (!inner) return;
+  inner.innerHTML = '';
+  for (let o = KB_OCT_MAX; o >= KB_OCT_MIN; o--) {
+    const s = document.createElement('div');
+    s.className = 'ow-slot' + (o === kbOctave ? ' cur' : '');
+    s.textContent = 'C' + o; s.dataset.oct = o;
+    inner.appendChild(s);
+  }
+  scrollKbWheel();
+}
+
+function scrollKbWheel() {
+  const inner = document.getElementById('oct-wheel-inner'); if (!inner) return;
+  const wH = document.getElementById('oct-wheel').clientHeight || 66;
+  inner.style.transform = `translateY(${wH/2 - KB_SLOT_H/2 - (KB_OCT_MAX - kbOctave) * KB_SLOT_H}px)`;
+  inner.querySelectorAll('.ow-slot').forEach(s => s.classList.toggle('cur', parseInt(s.dataset.oct) === kbOctave));
+}
+
+function updateKbOctave() { scrollKbWheel(); buildKb(); }
+
+(function() {
+  const wheel = document.getElementById('oct-wheel'); if (!wheel) return;
+  let sy = null, so = null;
+  wheel.addEventListener('mousedown', e => { sy = e.clientY; so = kbOctave; e.preventDefault(); });
+  document.addEventListener('mousemove', e => {
+    if (sy === null) return;
+    const d = Math.round((sy - e.clientY) / KB_SLOT_H);
+    const n = Math.max(KB_OCT_MIN, Math.min(KB_OCT_MAX, so + d));
+    if (n !== kbOctave) { kbOctave = n; updateKbOctave(); }
+  });
+  document.addEventListener('mouseup', () => { sy = null; });
+  wheel.addEventListener('wheel', e => {
+    e.preventDefault();
+    kbOctave = Math.max(KB_OCT_MIN, Math.min(KB_OCT_MAX, kbOctave + (e.deltaY > 0 ? -1 : 1)));
+    updateKbOctave();
+  }, { passive: false });
+  wheel.addEventListener('click', e => {
+    const s = e.target.closest('.ow-slot');
+    if (s) { kbOctave = parseInt(s.dataset.oct); updateKbOctave(); }
+  });
+})();
+
+// Computer keyboard
+document.addEventListener('keydown', e => {
+  if (e.repeat || e.target.tagName === 'INPUT') return;
+  const key = e.key.toLowerCase();
+  if (key === 'z') { kbOctave = Math.max(KB_OCT_MIN, kbOctave - 1); updateKbOctave(); return; }
+  if (key === 'x') { kbOctave = Math.min(KB_OCT_MAX, kbOctave + 1); updateKbOctave(); return; }
+  const base = kbOctave * 12 + 12; let n = null;
+  if (KB_WHITE[key] !== undefined) n = base + WHITE_KEYS[KB_WHITE[key]];
+  else if (KB_BLACK[key] !== undefined) { const s = BLACK_SLOTS[KB_BLACK[key]]; if (s != null) n = base + s; }
+  if (n !== null && !kbActiveVoices.has(n)) {
+    playKbNote(n);
+    document.getElementById('keyboard')?.querySelectorAll('.key').forEach(k => { if (parseInt(k.dataset.note) === n) k.classList.add('active'); });
+  }
+});
+
+document.addEventListener('keyup', e => {
+  const key = e.key.toLowerCase(); const base = kbOctave * 12 + 12; let n = null;
+  if (KB_WHITE[key] !== undefined) n = base + WHITE_KEYS[KB_WHITE[key]];
+  else if (KB_BLACK[key] !== undefined) { const s = BLACK_SLOTS[KB_BLACK[key]]; if (s != null) n = base + s; }
+  if (n !== null) {
+    stopKbNote(n);
+    document.getElementById('keyboard')?.querySelectorAll('.key').forEach(k => { if (parseInt(k.dataset.note) === n) k.classList.remove('active'); });
+  }
+});
+
+// ── Voice buttons ──
+document.querySelectorAll('.voice-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.voice-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    P.voice = btn.dataset.voice;
+    if (graphBuilt) buildVoice();
+  });
+});
+
+// ── Scale buttons ──
+document.querySelectorAll('.scale-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.scale-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    P.scale = btn.dataset.scale;
+  });
+});
+
+// ── Resize ──
+window.addEventListener('resize', () => { resizeTrail(); initAtmos(); buildKb(); });
+
+// ── Init ──
+setupKnobs();
+resizeTrail();
+initAtmos();
+buildKb();
+buildKbOctWheel();
+drawAtmos();
+drawTrail();
+drawWave();
+</script>
+</body>
+</html>
